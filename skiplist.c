@@ -74,7 +74,8 @@ void insertElement(SkipList* slist, uint32_t key) {
   slist->num_elements++;
 
   // resize fast lanes if more space is needed
-  if (slist->num_elements % (TOP_LANE_BLOCK*((uint32_t) pow(slist->skip,slist->max_level))) == 0)
+  if (slist->num_elements %
+      (TOP_LANE_BLOCK*((uint32_t) pow(slist->skip, slist->max_level))) == 0)
     resizeFastLanes(slist);
 }
 
@@ -167,10 +168,10 @@ void resizeFastLanes(SkipList* slist) {
 
 // Single-key lookup on a given skip list
 uint32_t searchElement(SkipList* slist, uint32_t key) {
-  uint curPos = 0;
-  uint first = 0;
-  uint last = slist->items_per_level[slist->max_level - 1] - 1;
-  uint middle = (first + last) / 2;
+  uint32_t curPos = 0;
+  uint32_t first = 0;
+  uint32_t last = slist->items_per_level[slist->max_level - 1] - 1;
+  uint32_t middle = (first + last) / 2;
   // scan highest fast lane with binary search
   while (first <= last) {
 	  if (slist->flanes[middle] < key)
@@ -185,10 +186,10 @@ uint32_t searchElement(SkipList* slist, uint32_t key) {
   }
   if (first > last)
     curPos = last;
-  uint level;
+  uint32_t level;
   // traverse over fast lanes
   for (level = slist->max_level - 1; level >= 0; level--) {
-    uint rPos = curPos - slist->starts_of_flanes[level];
+    uint32_t rPos = curPos - slist->starts_of_flanes[level];
     while (rPos < slist->items_per_level[level] &&
            key >= slist->flanes[++curPos])
       rPos++;
@@ -214,10 +215,10 @@ RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKe
   // should be used as starting position for search
   __m256 avx_creg, res, avx_sreg;
   RangeSearchResult result;
-  uint level, bitmask;
-  uint curPos = 0; uint rPos = 0; uint first = 0;
-  uint last = slist->items_per_level[slist->max_level - 1] - 1;
-  uint middle = (first + last) / 2;
+  uint32_t level, bitmask;
+  uint32_t curPos = 0; uint32_t rPos = 0; uint32_t first = 0;
+  uint32_t last = slist->items_per_level[slist->max_level - 1] - 1;
+  uint32_t middle = (first + last) / 2;
   while (first <= last) {
 	  if (slist->flanes[middle] < startKey) {
 		  first = middle + 1;
@@ -240,7 +241,7 @@ RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKe
     if (level == 0) break;
     curPos  = slist->starts_of_flanes[level - 1] + rPos * slist->skip;
   }
-  uint start_of_flane = slist->starts_of_flanes[0];
+  uint32_t start_of_flane = slist->starts_of_flanes[0];
   while (startKey < slist->flanes[curPos] && curPos > start_of_flane)
     curPos--;
 
@@ -257,7 +258,7 @@ RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKe
 
   // search for the range's last matching node
   avx_sreg = _mm256_castsi256_ps(_mm256_set1_epi32(endKey));
-  uint itemsInFlane = slist->items_per_level[0] - SIMD_SEGMENTS;
+  uint32_t itemsInFlane = slist->items_per_level[0] - SIMD_SEGMENTS;
   rPos = curPos - start_of_flane;
   while (rPos < itemsInFlane) {
     avx_creg = _mm256_castsi256_ps(
