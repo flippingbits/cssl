@@ -24,22 +24,16 @@ typedef struct {
   struct DataNode *next;
 } DataNode;
 
-// proxy node
 typedef struct {
-  uint32_t key;
-  DataNode* link;
-} ProxyNode;
-
-typedef struct {
-  uint8_t     max_level;
-  uint8_t     skip;
-  uint32_t    num_elements;
-  uint32_t*   items_per_level;
-  uint32_t*   flane_items;
-  uint32_t*   starts_of_flanes;
-  uint32_t*   flanes;
-  ProxyNode** flane_pointers;
-  DataNode    *head, *tail;
+  uint8_t    max_level;
+  uint8_t    skip;
+  uint32_t   num_elements;
+  uint32_t*  items_per_level;
+  uint32_t*  flane_items;
+  uint32_t*  starts_of_flanes;
+  uint32_t*  flanes;
+  DataNode** flane_pointers;
+  DataNode   *head, *tail;
 } SkipList;
 
 // result of a range query
