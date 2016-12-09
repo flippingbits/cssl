@@ -26,9 +26,8 @@ typedef struct {
 
 // proxy node
 typedef struct {
-  uint32_t keys[MAX_SKIP];
-  DataNode* pointers[MAX_SKIP];
-  bool updated;
+  uint32_t key;
+  DataNode* link;
 } ProxyNode;
 
 typedef struct {
@@ -51,6 +50,7 @@ typedef struct {
 } RangeSearchResult;
 
 SkipList*         createSkipList(uint8_t maxLevel, uint8_t skip);
+void              bulkInsertElement(SkipList* slist, uint32_t key);
 void              insertElement(SkipList* slist, uint32_t key);
 uint32_t          insertItemIntoFastLane(SkipList* slist, int8_t level, DataNode* newNode);
 void              buildFastLanes(SkipList* slist);

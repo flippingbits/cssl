@@ -25,36 +25,17 @@ SkipList* createSkipList(uint8_t maxLevel, uint8_t skip) {
 // Creates a new proxy node in the given skip list
 ProxyNode* newProxyNode(SkipList* slist, DataNode* node) {
   ProxyNode* proxy = malloc(sizeof(*proxy));
-  proxy->keys[0] = node->key;
-  proxy->updated = false;
-
-  for (uint8_t i = 1; i < slist->skip; i++)
-    proxy->keys[i] = INT_MAX;
-  proxy->pointers[0] = node;
+  proxy->key  = node->key;
+  proxy->link = node;
 
   return proxy;
 }
 
-// Adds a new element to the corresponding proxy lane in the given skip list
-void findAndInsertIntoProxyNode(SkipList* slist, DataNode* node) {
-  ProxyNode* proxy = slist->flane_pointers[slist->flane_items[0] - 1];
-
-  for (uint8_t i = 1; i < slist->skip; i++) {
-    if (proxy->keys[i] == INT_MAX) {
-      proxy->keys[i] = node->key;
-      proxy->pointers[i] = node;
-      return;
-    }
-  }
-}
-
-// Inserts a new element into the given skip list (bulk insert)
-void insertElement(SkipList* slist, uint32_t key) {
+// Appends a given element at the end of CSSL (may be used for bulk inserting a pre-sorted list of keys)
+void bulkInsertElement(SkipList* slist, uint32_t key) {
   DataNode *new_node = newNode(key);
   bool nodeInserted = true;
-  bool flaneInserted = false;
 
-  // add new node at the end of the data list
   slist->tail->next = (struct DataNode*) new_node;
   slist->tail = new_node;
 
@@ -65,23 +46,51 @@ void insertElement(SkipList* slist, uint32_t key) {
       nodeInserted = insertItemIntoFastLane(slist, level, new_node);
     else
       break;
-    flaneInserted = true;
   }
-
-  if (!flaneInserted)
-    findAndInsertIntoProxyNode(slist, new_node);
 
   slist->num_elements++;
 
   // resize fast lanes if more space is needed
-  if (slist->num_elements %
-      (TOP_LANE_BLOCK*((uint32_t) pow(slist->skip, slist->max_level))) == 0)
+  if (slist->items_per_level[0] - slist->flane_items[0] < 5)
+    resizeFastLanes(slist);
+}
+
+// Inserts a new element into the given skip list (bulk insert)
+void insertElement(SkipList* slist, uint32_t key) {
+  DataNode *new_node = newNode(key);
+  bool nodeInserted = true;
+
+  // TODO: Use fast lanes to find insert position
+  DataNode *cur = slist->head;
+  uint32_t insert_pos = 0;
+  while (cur->next != NULL && key > ((DataNode*) cur->next)->key) {
+    cur = (DataNode*) cur->next;
+    insert_pos++;
+  }
+  new_node->next = cur->next;
+  cur->next = (struct DataNode*) new_node;
+
+  if (slist->tail == cur)
+    slist->tail = new_node;
+
+  // add key to fast lanes
+  for (uint8_t level = 0; level < slist->max_level; level++) {
+    if (insert_pos % (uint32_t) pow(slist->skip, (level + 1)) == 0 && nodeInserted)
+      nodeInserted = insertItemIntoFastLane(slist, level, new_node);
+    else
+      break;
+  }
+
+  slist->num_elements++;
+
+  // resize fast lanes if more space is needed
+  if (slist->items_per_level[0] - slist->flane_items[0] < 5)
     resizeFastLanes(slist);
 }
 
 // Inserts a given key into a fast lane at the given level
 uint32_t insertItemIntoFastLane(SkipList* slist, int8_t level, DataNode* newNode) {
-  uint32_t curPos = slist->starts_of_flanes[level] + slist->flane_items[level];
+  uint32_t curPos = slist->starts_of_flanes[level];
   uint32_t levelLimit = curPos + slist->items_per_level[level];
 
   if (curPos > levelLimit)
@@ -94,12 +103,25 @@ uint32_t insertItemIntoFastLane(SkipList* slist, int8_t level, DataNode* newNode
     slist->flanes[curPos] = newNode->key;
     if (level == 0)
       slist->flane_pointers[curPos - slist->starts_of_flanes[0]] =
-                                                   newProxyNode(slist, newNode);
+        newProxyNode(slist, newNode);
     slist->flane_items[level]++;
-  } else {
+  } else if (slist->flane_items[level] < slist->items_per_level[level]) {
+    uint32_t shift_pos = slist->starts_of_flanes[level] +
+      slist->flane_items[level];
+    while (shift_pos > curPos) {
+      slist->flanes[shift_pos] = slist->flanes[shift_pos - 1];
+      if (level == 0)
+        slist->flane_pointers[shift_pos - slist->starts_of_flanes[0]] =
+          slist->flane_pointers[shift_pos - slist->starts_of_flanes[0] - 1];
+      shift_pos--;
+    }
+    slist->flanes[curPos] = newNode->key;
+    if (level == 0)
+      slist->flane_pointers[curPos - slist->starts_of_flanes[0]] =
+        newProxyNode(slist, newNode);
+    slist->flane_items[level]++;
+  } else
     return INT_MAX;
-  }
-
   return curPos;
 }
 
@@ -131,7 +153,7 @@ void buildFastLanes(SkipList* slist) {
 // Increase size of existing fast lanes of a given skip list
 void resizeFastLanes(SkipList* slist) {
   uint32_t new_size = slist->items_per_level[slist->max_level - 1] +
-                        TOP_LANE_BLOCK;
+    TOP_LANE_BLOCK;
   uint32_t* level_items = malloc(sizeof(uint32_t) * slist->max_level);
   uint32_t* level_starts = malloc(sizeof(uint32_t) * slist->max_level);
 
@@ -150,20 +172,40 @@ void resizeFastLanes(SkipList* slist) {
   for (uint32_t i = slist->flane_items[slist->max_level - 1]; i < new_size; i++)
     new_flanes[i] = INT_MAX;
 
-  // copy from old flane to new flane
-  for (int8_t level = slist->max_level - 1; level >= 0; level--)
-    memcpy(&new_flanes[level_starts[level]],
-           &slist->flanes[slist->starts_of_flanes[level]],
-           sizeof(uint32_t) * slist->items_per_level[level]);
-  memcpy(&new_fpointers[0],
-         &slist->flane_pointers[0],
-         sizeof(ProxyNode*) * slist->items_per_level[0]);
+  DataNode *cur = (DataNode*) slist->head->next;
+  uint32_t i    = 0;
+  uint32_t j    = level_starts[0];
+  while (cur != NULL) {
+    if (i % slist->skip == 0) {
+      new_flanes[j] = cur->key;
+      new_fpointers[i / slist->skip] = newProxyNode(slist, cur);
+      j++;
+    }
+    cur = (DataNode*) cur->next;
+    i++;
+  }
 
-  free(slist->flanes); free(slist->flane_pointers);
-  free(slist->items_per_level); free(slist->starts_of_flanes);
+  for (int8_t level = 1; level < slist->max_level; level++) {
+    i = level_starts[level - 1];
+    j = level_starts[level];
+    for (uint32_t k = 0; k < level_items[level - 1]; k++) {
+      if (k % slist->skip == 0)
+        new_flanes[j++] = new_flanes[i];
+      i++;
+    }
+  }
+  for (i = 0; i < slist->flane_items[0]; i++)
+    free(slist->flane_pointers[i]);
 
-  slist->flanes = new_flanes; slist->flane_pointers = new_fpointers;
-  slist->items_per_level = level_items; slist->starts_of_flanes = level_starts;
+  free(slist->flanes);
+  free(slist->flane_pointers);
+  free(slist->items_per_level);
+  free(slist->starts_of_flanes);
+
+  slist->flanes = new_flanes;
+  slist->flane_pointers = new_fpointers;
+  slist->items_per_level = level_items;
+  slist->starts_of_flanes = level_starts;
 }
 
 // Single-key lookup on a given skip list
@@ -190,9 +232,14 @@ uint32_t searchElement(SkipList* slist, uint32_t key) {
   // traverse over fast lanes
   for (level = slist->max_level - 1; level >= 0; level--) {
     uint32_t rPos = curPos - slist->starts_of_flanes[level];
-    while (rPos < slist->items_per_level[level] &&
-           key >= slist->flanes[++curPos])
-      rPos++;
+    if (slist->flanes[curPos] > key)
+      while (rPos > 0 &&
+          key < slist->flanes[--curPos])
+        rPos--;
+    else
+      while (rPos < slist->items_per_level[level] &&
+          key >= slist->flanes[++curPos])
+        rPos++;
     if (level == 0) break;
     curPos  = slist->starts_of_flanes[level - 1] + rPos * slist->skip;
   }
@@ -200,12 +247,12 @@ uint32_t searchElement(SkipList* slist, uint32_t key) {
     return key;
 
   ProxyNode* proxy = slist->flane_pointers[curPos - slist->starts_of_flanes[0]];
-  for (uint8_t i = 1; i < slist->skip; i++) {
-    if (proxy->keys[i] == key)
-      return key;
-  }
+  DataNode *cur = proxy->link;
+  while (cur != NULL && key > cur->key)
+    cur = (DataNode*) cur->next;
+  if (key == cur->key)
+    return key;
 
-  // search on data lane if proxy->skips_data == true
   return INT_MAX;
 }
 
@@ -235,30 +282,32 @@ RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKe
 
   for (level = slist->max_level - 1; level >= 0; level--) {
     rPos = curPos - slist->starts_of_flanes[level];
-    while (rPos < slist->items_per_level[level] &&
-           startKey >= slist->flanes[++curPos])
-      rPos++;
+    if (slist->flanes[curPos] > startKey)
+      while (rPos > 0 &&
+          startKey < slist->flanes[--curPos])
+        rPos--;
+    else
+      while (rPos < slist->items_per_level[level] &&
+          startKey >= slist->flanes[++curPos])
+        rPos++;
     if (level == 0) break;
     curPos  = slist->starts_of_flanes[level - 1] + rPos * slist->skip;
   }
-  uint32_t start_of_flane = slist->starts_of_flanes[0];
+  uint start_of_flane = slist->starts_of_flanes[0];
   while (startKey < slist->flanes[curPos] && curPos > start_of_flane)
     curPos--;
 
   result.count = 0;
 
   ProxyNode* proxy = slist->flane_pointers[curPos - slist->starts_of_flanes[0]];
-  result.start = (DataNode*) proxy->pointers[slist->skip - 1]->next;
-  for (uint8_t i = 0; i < slist->skip; i++) {
-    if (startKey <= proxy->keys[i]) {
-      result.start = proxy->pointers[i];
-      break;
-    }
-  }
+  DataNode* cur = proxy->link;
+  while (cur != NULL && startKey > cur->key)
+    cur = (DataNode*) cur->next;
+  result.start = cur;
 
   // search for the range's last matching node
   avx_sreg = _mm256_castsi256_ps(_mm256_set1_epi32(endKey));
-  uint32_t itemsInFlane = slist->items_per_level[0] - SIMD_SEGMENTS;
+  uint itemsInFlane = slist->items_per_level[0] - SIMD_SEGMENTS;
   rPos = curPos - start_of_flane;
   while (rPos < itemsInFlane) {
     avx_creg = _mm256_castsi256_ps(
@@ -272,17 +321,20 @@ RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKe
   curPos--;rPos--;
   itemsInFlane += SIMD_SEGMENTS;
 
+  if (rPos < 0) {
+    rPos = 0;
+    curPos = start_of_flane;
+  }
+
   while (endKey >= slist->flanes[++curPos] && rPos < itemsInFlane) {
     rPos++;
   }
 
   proxy = slist->flane_pointers[rPos];
-  result.end = proxy->pointers[slist->skip - 1];
-  for (uint8_t i = 1; i < slist->skip; i++) {
-    if (endKey < proxy->keys[i]) {
-      result.end = proxy->pointers[i - 1];
-      break;
-    }
+  cur = proxy->link;
+  while (cur != NULL && endKey >= cur->key) {
+    result.end = cur;
+    cur = (DataNode*) cur->next;
   }
 
   return result;

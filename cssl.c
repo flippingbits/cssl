@@ -43,23 +43,25 @@ int main( int argc, const char* argv[] ) {
   SkipList* slist = createSkipList(9, 5);
   uint32_t n = atoi(argv[1]);
   uint32_t* keys = malloc(sizeof(uint32_t) * n);
+  double start;
 
   if (atoi(argv[2]) == 0) {
     // dense integers
     for(uint32_t i = 0; i < n; i++)
       keys[i] = i + 1;
+    start = gettime();
+    for (uint32_t i = 0; i < n; i++)
+      bulkInsertElement(slist, keys[i]);
+    printf("Insertion: %d elements / second.\n", (int) (n / (gettime() - start)));
   } else {
     // sparse integers
     for (uint32_t i = 0; i < n; i++)
       keys[i] = (rand() % (INT_MAX/2-1)) + 1;
-    qsort(keys, n, sizeof(uint32_t), compare_ints);
+    start = gettime();
+    for (uint32_t i = 0; i < n; i++)
+      insertElement(slist, keys[i]);
+    printf("Insertion: %d elements / second.\n", (int) (n / (gettime() - start)));
   }
-
-  // Insert keys into CSSL
-  double start = gettime();
-  for (uint32_t i = 0; i < n; i++)
-    insertElement(slist, keys[i]);
-  printf("Insertion: %d ops/s.\n", (int) (n / (gettime() - start)));
 
   // Execute a large amount of single-key lookups using random search keys
   shuffle_array(keys, n);
