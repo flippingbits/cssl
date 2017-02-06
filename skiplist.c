@@ -171,18 +171,18 @@ uint32_t searchElement(SkipList* slist, uint32_t key) {
   uint32_t curPos = 0;
   uint32_t first = 0;
   uint32_t last = slist->items_per_level[slist->max_level - 1] - 1;
-  uint32_t middle = (first + last) / 2;
+  uint32_t middle = 0;
   // scan highest fast lane with binary search
-  while (first <= last) {
-	  if (slist->flanes[middle] < key)
-		  first = middle + 1;
-	  else if (slist->flanes[middle] == key) {
-		  curPos = middle;
-		  break;
-	  }
-	  else
-		  last = middle - 1;
-	  middle = (first + last) / 2;
+  while (first < last) {
+    middle = (first + last) / 2;
+    if (slist->flanes[middle] < key) {
+      first = middle + 1;
+    } else if (slist->flanes[middle] == key) {
+      curPos = middle;
+      break;
+    } else {
+      last = middle;
+    }
   }
   if (first > last)
     curPos = last;
@@ -218,17 +218,18 @@ RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKe
   uint32_t level, bitmask;
   uint32_t curPos = 0; uint32_t rPos = 0; uint32_t first = 0;
   uint32_t last = slist->items_per_level[slist->max_level - 1] - 1;
-  uint32_t middle = (first + last) / 2;
-  while (first <= last) {
-	  if (slist->flanes[middle] < startKey) {
-		  first = middle + 1;
+  uint32_t middle = 0;
+  // scan highest fast lane with binary search
+  while (first < last) {
+    middle = (first + last) / 2;
+    if (slist->flanes[middle] < startKey) {
+      first = middle + 1;
     } else if (slist->flanes[middle] == startKey) {
-		  curPos = middle;
-		  break;
-	  } else {
-		  last = middle - 1;
+      curPos = middle;
+      break;
+    } else {
+      last = middle;
     }
-	  middle = (first + last) / 2;
   }
   if (first > last)
     curPos = last;
