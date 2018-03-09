@@ -48,7 +48,7 @@ int main( int argc, const char* argv[] ) {
     return 1;
   }
 
-  SkipList* slist = createSkipList(9, 5);
+  _CSSL_SkipList* slist = createSkipList(9, 5);
   uint32_t n = atoi(argv[1]);
   uint32_t* keys = malloc(sizeof(uint32_t) * n);
 
@@ -75,19 +75,21 @@ int main( int argc, const char* argv[] ) {
   if (repeat < 1) repeat = 1;
   start = gettime();
   for (uint16_t r = 0; r < repeat; r++) {
-    for (uint32_t i = 0; i < n; i++)
+    for (uint32_t i = 0; i < n; i++) {
       assert(searchElement(slist, keys[i]) == keys[i]);
+    }
   }
   printf("Lookup:    %d ops/s.\n", (int) (n*repeat / (gettime() - start)));
 
   uint32_t m = 1000000;
   uint32_t r_size = n / 10;
   uint32_t* rkeys = malloc(sizeof(uint32_t) * m);
-  for(int i = 0; i < m; i++)
+  for(int i = 0; i < m; i++) {
     rkeys[i] = keys[rand() % n];
+  }
   start = gettime();
   for (int i = 0; i < m; i++) {
-    RangeSearchResult res = searchRange(slist, rkeys[i], (rkeys[i] + r_size));
+    _CSSL_RangeSearchResult res = searchRange(slist, rkeys[i], (rkeys[i] + r_size));
     assert(res.start->key >= rkeys[i] && res.end->key <= (rkeys[i] + r_size));
   }
   printf("Range:     %d ops/s. (Range size: %d)\n",

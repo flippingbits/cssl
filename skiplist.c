@@ -17,8 +17,8 @@
 #include "skiplist.h"
 
 // Creates a new skip list
-SkipList* createSkipList(uint8_t maxLevel, uint8_t skip) {
-  SkipList* slist = malloc(sizeof(*slist));
+_CSSL_SkipList* createSkipList(uint8_t maxLevel, uint8_t skip) {
+  _CSSL_SkipList* slist = malloc(sizeof(*slist));
 
   slist->max_level        = maxLevel;
   slist->num_elements     = 0;
@@ -39,8 +39,8 @@ SkipList* createSkipList(uint8_t maxLevel, uint8_t skip) {
 }
 
 // Creates a new proxy node in the given skip list
-ProxyNode* newProxyNode(SkipList* slist, DataNode* node) {
-  ProxyNode* proxy = malloc(sizeof(*proxy));
+_CSSL_ProxyNode* newProxyNode(_CSSL_SkipList* slist, _CSSL_DataNode* node) {
+  _CSSL_ProxyNode* proxy = malloc(sizeof(*proxy));
   proxy->keys[0] = node->key;
   proxy->updated = false;
 
@@ -52,8 +52,8 @@ ProxyNode* newProxyNode(SkipList* slist, DataNode* node) {
 }
 
 // Adds a new element to the corresponding proxy lane in the given skip list
-void findAndInsertIntoProxyNode(SkipList* slist, DataNode* node) {
-  ProxyNode* proxy = slist->flane_pointers[slist->flane_items[0] - 1];
+void findAndInsertIntoProxyNode(_CSSL_SkipList* slist, _CSSL_DataNode* node) {
+  _CSSL_ProxyNode* proxy = slist->flane_pointers[slist->flane_items[0] - 1];
 
   for (uint8_t i = 1; i < slist->skip; i++) {
     if (proxy->keys[i] == INT_MAX) {
@@ -65,13 +65,13 @@ void findAndInsertIntoProxyNode(SkipList* slist, DataNode* node) {
 }
 
 // Inserts a new element into the given skip list (bulk insert)
-void insertElement(SkipList* slist, uint32_t key) {
-  DataNode *new_node = newNode(key);
+void insertElement(_CSSL_SkipList* slist, uint32_t key) {
+  _CSSL_DataNode *new_node = newNode(key);
   bool nodeInserted = true;
   bool flaneInserted = false;
 
   // add new node at the end of the data list
-  slist->tail->next = (struct DataNode*) new_node;
+  slist->tail->next = (struct _CSSL_DataNode*) new_node;
   slist->tail = new_node;
 
   // add key to fast lanes
@@ -96,7 +96,7 @@ void insertElement(SkipList* slist, uint32_t key) {
 }
 
 // Inserts a given key into a fast lane at the given level
-uint32_t insertItemIntoFastLane(SkipList* slist, int8_t level, DataNode* newNode) {
+uint32_t insertItemIntoFastLane(_CSSL_SkipList* slist, int8_t level, _CSSL_DataNode* newNode) {
   uint32_t curPos = slist->starts_of_flanes[level] + slist->flane_items[level];
   uint32_t levelLimit = curPos + slist->items_per_level[level];
 
@@ -120,7 +120,7 @@ uint32_t insertItemIntoFastLane(SkipList* slist, int8_t level, DataNode* newNode
 }
 
 // Build fast lanes
-void buildFastLanes(SkipList* slist) {
+void buildFastLanes(_CSSL_SkipList* slist) {
   uint32_t flane_size = TOP_LANE_BLOCK;
 
   slist->items_per_level[slist->max_level - 1]  = flane_size;
@@ -136,7 +136,7 @@ void buildFastLanes(SkipList* slist) {
   }
 
   slist->flanes = malloc(sizeof(uint32_t) * flane_size);
-  slist->flane_pointers = malloc(sizeof(ProxyNode*) * slist->items_per_level[0]);
+  slist->flane_pointers = malloc(sizeof(_CSSL_ProxyNode*) * slist->items_per_level[0]);
   // initialize arrays with placeholder values
   for (uint32_t i = 0; i < flane_size; i++)
     slist->flanes[i] = INT_MAX;
@@ -145,7 +145,7 @@ void buildFastLanes(SkipList* slist) {
 }
 
 // Increase size of existing fast lanes of a given skip list
-void resizeFastLanes(SkipList* slist) {
+void resizeFastLanes(_CSSL_SkipList* slist) {
   uint32_t new_size = slist->items_per_level[slist->max_level - 1] +
                         TOP_LANE_BLOCK;
   uint32_t* level_items = malloc(sizeof(uint32_t) * slist->max_level);
@@ -161,29 +161,34 @@ void resizeFastLanes(SkipList* slist) {
   }
 
   uint32_t* new_flanes = malloc(sizeof(uint32_t) * new_size);
-  ProxyNode** new_fpointers = malloc(sizeof(ProxyNode*) * level_items[0]);
+  _CSSL_ProxyNode** new_fpointers = malloc(sizeof(_CSSL_ProxyNode*) * level_items[0]);
 
-  for (uint32_t i = slist->flane_items[slist->max_level - 1]; i < new_size; i++)
+  for (uint32_t i = slist->flane_items[slist->max_level - 1]; i < new_size; i++) {
     new_flanes[i] = INT_MAX;
+  }
 
   // copy from old flane to new flane
-  for (int8_t level = slist->max_level - 1; level >= 0; level--)
+  for (int8_t level = slist->max_level - 1; level >= 0; level--) {
     memcpy(&new_flanes[level_starts[level]],
            &slist->flanes[slist->starts_of_flanes[level]],
            sizeof(uint32_t) * slist->items_per_level[level]);
+  }
   memcpy(&new_fpointers[0],
          &slist->flane_pointers[0],
-         sizeof(ProxyNode*) * slist->items_per_level[0]);
+         sizeof(_CSSL_ProxyNode*) * slist->items_per_level[0]);
 
-  free(slist->flanes); free(slist->flane_pointers);
-  free(slist->items_per_level); free(slist->starts_of_flanes);
-
-  slist->flanes = new_flanes; slist->flane_pointers = new_fpointers;
-  slist->items_per_level = level_items; slist->starts_of_flanes = level_starts;
+  free(slist->flanes);
+  free(slist->flane_pointers);
+  free(slist->items_per_level);
+  free(slist->starts_of_flanes);
+  slist->flanes = new_flanes;
+  slist->flane_pointers = new_fpointers;
+  slist->items_per_level = level_items;
+  slist->starts_of_flanes = level_starts;
 }
 
 // Single-key lookup on a given skip list
-uint32_t searchElement(SkipList* slist, uint32_t key) {
+uint32_t searchElement(_CSSL_SkipList* slist, uint32_t key) {
   uint32_t curPos = 0;
   uint32_t first = 0;
   uint32_t last = slist->items_per_level[slist->max_level - 1] - 1;
@@ -202,7 +207,7 @@ uint32_t searchElement(SkipList* slist, uint32_t key) {
   }
   if (first > last)
     curPos = last;
-  uint32_t level;
+  int level;
   // traverse over fast lanes
   for (level = slist->max_level - 1; level >= 0; level--) {
     uint32_t rPos = curPos - slist->starts_of_flanes[level];
@@ -215,7 +220,7 @@ uint32_t searchElement(SkipList* slist, uint32_t key) {
   if (key == slist->flanes[--curPos])
     return key;
 
-  ProxyNode* proxy = slist->flane_pointers[curPos - slist->starts_of_flanes[0]];
+  _CSSL_ProxyNode* proxy = slist->flane_pointers[curPos - slist->starts_of_flanes[0]];
   for (uint8_t i = 1; i < slist->skip; i++) {
     if (proxy->keys[i] == key)
       return key;
@@ -226,13 +231,15 @@ uint32_t searchElement(SkipList* slist, uint32_t key) {
 }
 
 // Range query on a given skip list using range boundaries startKey and endKey
-RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKey) {
+_CSSL_RangeSearchResult searchRange(_CSSL_SkipList* slist, uint32_t startKey, uint32_t endKey) {
   // use the cache to determine the section of the first fast lane that
   // should be used as starting position for search
   __m256 avx_creg, res, avx_sreg;
-  RangeSearchResult result;
-  uint32_t level, bitmask;
-  uint32_t curPos = 0; uint32_t rPos = 0; uint32_t first = 0;
+  _CSSL_RangeSearchResult result;
+  int level, bitmask;
+  uint32_t curPos = 0;
+  uint32_t rPos = 0;
+  uint32_t first = 0;
   uint32_t last = slist->items_per_level[slist->max_level - 1] - 1;
   uint32_t middle = 0;
   // scan highest fast lane with binary search
@@ -253,19 +260,21 @@ RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKe
   for (level = slist->max_level - 1; level >= 0; level--) {
     rPos = curPos - slist->starts_of_flanes[level];
     while (rPos < slist->items_per_level[level] &&
-           startKey >= slist->flanes[++curPos])
+           startKey >= slist->flanes[++curPos]) {
       rPos++;
+    }
     if (level == 0) break;
     curPos  = slist->starts_of_flanes[level - 1] + rPos * slist->skip;
   }
   uint32_t start_of_flane = slist->starts_of_flanes[0];
-  while (startKey < slist->flanes[curPos] && curPos > start_of_flane)
+  while (startKey < slist->flanes[curPos] && curPos > start_of_flane) {
     curPos--;
+  }
 
   result.count = 0;
 
-  ProxyNode* proxy = slist->flane_pointers[curPos - slist->starts_of_flanes[0]];
-  result.start = (DataNode*) proxy->pointers[slist->skip - 1]->next;
+  _CSSL_ProxyNode* proxy = slist->flane_pointers[curPos - slist->starts_of_flanes[0]];
+  result.start = (_CSSL_DataNode*) proxy->pointers[slist->skip - 1]->next;
   for (uint8_t i = 0; i < slist->skip; i++) {
     if (startKey <= proxy->keys[i]) {
       result.start = proxy->pointers[i];
@@ -286,7 +295,8 @@ RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKe
     curPos += SIMD_SEGMENTS; rPos += SIMD_SEGMENTS;
     result.count += (SIMD_SEGMENTS *  slist->skip);
   }
-  curPos--;rPos--;
+  curPos--;
+  rPos--;
   itemsInFlane += SIMD_SEGMENTS;
 
   while (endKey >= slist->flanes[++curPos] && rPos < itemsInFlane) {
@@ -306,8 +316,8 @@ RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKe
 }
 
 // Creates a new node
-DataNode* newNode(uint32_t key) {
-  DataNode* node = malloc(sizeof(*node));
+_CSSL_DataNode* newNode(uint32_t key) {
+  _CSSL_DataNode* node = malloc(sizeof(*node));
   node->key  = key;
   node->next = NULL;
 

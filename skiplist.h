@@ -14,8 +14,8 @@
  * limitations under the License.
 */
 
-#ifndef __SkipList_H
-#define __SkipList_H
+#ifndef __CSSL_SkipList_H
+#define __CSSL_SkipList_H
 
 #define MAX_SKIP 5
 // initial size of the highest fast lane with number
@@ -37,41 +37,43 @@
 // data list node
 typedef struct {
   uint32_t key;
-  struct DataNode *next;
-} DataNode;
+  struct _CSSL_DataNode *next;
+} _CSSL_DataNode;
 
 // proxy node
 typedef struct {
   uint32_t keys[MAX_SKIP];
-  DataNode* pointers[MAX_SKIP];
+  _CSSL_DataNode* pointers[MAX_SKIP];
   bool updated;
-} ProxyNode;
+} _CSSL_ProxyNode;
 
 typedef struct {
-  uint8_t     max_level;
-  uint8_t     skip;
-  uint32_t    num_elements;
-  uint32_t*   items_per_level;
-  uint32_t*   flane_items;
-  uint32_t*   starts_of_flanes;
-  uint32_t*   flanes;
-  ProxyNode** flane_pointers;
-  DataNode    *head, *tail;
-} SkipList;
+  uint8_t           max_level;
+  uint8_t           skip;
+  uint32_t          num_elements;
+  uint32_t*         items_per_level;
+  uint32_t*         flane_items;
+  uint32_t*         starts_of_flanes;
+  uint32_t*         flanes;
+  _CSSL_ProxyNode** flane_pointers;
+  _CSSL_DataNode    *head, *tail;
+} _CSSL_SkipList;
 
 // result of a range query
 typedef struct {
-  DataNode* start;
-  DataNode* end;
-  uint32_t  count;
-} RangeSearchResult;
+  _CSSL_DataNode* start;
+  _CSSL_DataNode* end;
+  uint32_t        count;
+} _CSSL_RangeSearchResult;
 
-SkipList*         createSkipList(uint8_t maxLevel, uint8_t skip);
-void              insertElement(SkipList* slist, uint32_t key);
-uint32_t          insertItemIntoFastLane(SkipList* slist, int8_t level, DataNode* newNode);
-void              buildFastLanes(SkipList* slist);
-void              resizeFastLanes(SkipList* slist);
-uint32_t          searchElement(SkipList* slist, uint32_t key);
-RangeSearchResult searchRange(SkipList* slist, uint32_t startKey, uint32_t endKey);
-DataNode*         newNode(uint32_t key);
+_CSSL_SkipList*         createSkipList(uint8_t maxLevel, uint8_t skip);
+void                    insertElement(_CSSL_SkipList* slist, uint32_t key);
+uint32_t                insertItemIntoFastLane(_CSSL_SkipList* slist,
+                                               int8_t level,
+                                               _CSSL_DataNode* newNode);
+void                    buildFastLanes(_CSSL_SkipList* slist);
+void                    resizeFastLanes(_CSSL_SkipList* slist);
+uint32_t                searchElement(_CSSL_SkipList* slist, uint32_t key);
+_CSSL_RangeSearchResult searchRange(_CSSL_SkipList* slist, uint32_t startKey, uint32_t endKey);
+_CSSL_DataNode*         newNode(uint32_t key);
 #endif
